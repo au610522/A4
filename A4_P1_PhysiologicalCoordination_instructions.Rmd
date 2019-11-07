@@ -65,6 +65,7 @@ Conv <- read.csv('data/Study4_G1_T3_Conversation.csv')
 # Downsampling - problemer med at få den til at køre
 #### Error in check_arguments_(data, n, method, force_equal, allow_zero, descending,  :   method %in% c("greedy", "n_dist", "n_last", "n_fill", "n_rand",  .... is not TRUE
 
+
 # For the Syncronisation task
 dSync <- Sync %>% 
   group(n=100, method = ' greedy') %>% 
