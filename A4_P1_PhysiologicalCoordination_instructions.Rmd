@@ -62,26 +62,67 @@ Sync <- read.csv('data/Study4_G1_T1_Synchronous.csv')
 Turn <- read.csv('data/Study4_G1_T2_TurnTaking.csv')
 Conv <- read.csv('data/Study4_G1_T3_Conversation.csv')
 
-## Finding participant 1 and 2 
+## Finding participant 1 and 2 for syncronization
 
 RespSync <- gather(Sync, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
 HRSync <- gather(Sync, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
 
 # Plot
-PlotResp <- ggplot(data = RespSync,
+PlotRespSync <- ggplot(data = RespSync,
        aes(x = min, y = Resp, group = Participant, color = Participant)) +
   geom_line() + 
-  labs(title = 'Resp over time') +
+  labs(title = 'Resp over time for syncronization') +
   xlab("Time") + ylab("Resp")
 
-PlotHR <- ggplot(data = HRSync,
+PlotHRSync <- ggplot(data = HRSync,
        aes(x = min, y = HR, group = Participant, color = Participant)) +
   geom_line() + 
-  labs(title = 'Heart rate over time') +
+  labs(title = 'Heart rate over time for syncronization') +
   xlab("Time") + ylab("Heart Rate")
 
-print(PlotHR)
-print(PlotResp)
+print(PlotHRSync)
+print(PlotRespSync)
+
+## Finding participant 1 and 2 for turn taking
+RespTurn <- gather(Turn, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
+HRTurn <- gather(Turn, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+
+# Plot
+PlotRespTurn <- ggplot(data = RespTurn,
+       aes(x = min, y = Resp, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Resp over time for turntaking') +
+  xlab("Time") + ylab("Resp")
+
+PlotHRTurn <- ggplot(data = HRTurn,
+       aes(x = min, y = HR, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Heart rate over time for turntaking') +
+  xlab("Time") + ylab("Heart Rate")
+
+print(PlotHRTurn)
+print(PlotRespTurn)
+
+## Finding participant 1 and 2 for Conversation
+RespConv <- gather(Conv, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
+HRConv <- gather(Conv, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+
+# Plot
+PlotConv <- ggplot(data = RespConv,
+       aes(x = min, y = Resp, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Resp over time for conversation') +
+  xlab("Time") + ylab("Resp")
+
+PlotHRConv <- ggplot(data = HRConv,
+       aes(x = min, y = HR, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Heart rate over time for conversation') +
+  xlab("Time") + ylab("Heart Rate")
+
+print(PlotHRConv)
+print(PlotRespConv)
+
 
 ## Remove outliers
 
@@ -98,11 +139,13 @@ threshold=2.5 # Default value at 2.5 sds from the mean
 HRSync$HRout <- removeOuts(HRSync$HR, threshold)
 RespSync$Respout <- removeOuts(RespSync$Resp, threshold)
 
-PlotHR <- ggplot(data = HRSync,
+PlotHRout <- ggplot(data = HRSync,
        aes(x = min, y = HR, group = Participant, color = Participant)) +
   geom_line() + 
   labs(title = 'Heart rate over time') +
   xlab("Time") + ylab("Heart Rate")
+
+print(PlotHRout)
 
 # Plot raw data againt those with the artiacts removed
 
