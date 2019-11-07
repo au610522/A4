@@ -55,7 +55,7 @@ N.B. to give you a bit more data I included data from previous years (Study1, St
 ```{r}
 # Load the libraries
 library(pacman)
-p_load(tidyverse, groupdata2, ggplot2)
+p_load(tidyverse, groupdata2, ggplot2, tidyr)
 
 # Load the file
 Sync <- read.csv('data/Study4_G1_T1_Synchronous.csv')
@@ -64,12 +64,24 @@ Conv <- read.csv('data/Study4_G1_T3_Conversation.csv')
 
 ## Finding participant 1 and 2 
 
+RespSync <- gather(Sync, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
+HRSync <- gather(Sync, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
 
 # Plot
-ggplot(data = Sync,
-       aes(x = min, y = Resp2)) +
-  geom_line()
+PlotResp <- ggplot(data = RespSync,
+       aes(x = min, y = Resp, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Resp over time') +
+  xlab("Time") + ylab("Resp")
 
+PlotHR <- ggplot(data = HRSync,
+       aes(x = min, y = HR, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Heart rate over time') +
+  xlab("Time") + ylab("Heart Rate")
+
+print(PlotHR)
+print(PlotResp)
 
 ## Remove outliers
 
@@ -83,6 +95,14 @@ removeOuts <- function(ts,threshold){
 }
 threshold=2.5 # Default value at 2.5 sds from the mean
 
+HRSync$HRout <- removeOuts(HRSync$HR, threshold)
+RespSync$Respout <- removeOuts(RespSync$Resp, threshold)
+
+PlotHR <- ggplot(data = HRSync,
+       aes(x = min, y = HR, group = Participant, color = Participant)) +
+  geom_line() + 
+  labs(title = 'Heart rate over time') +
+  xlab("Time") + ylab("Heart Rate")
 
 # Plot raw data againt those with the artiacts removed
 
@@ -269,8 +289,6 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 # Make it into long format
 
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
-
-
 
 ```
  
