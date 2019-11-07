@@ -55,51 +55,20 @@ N.B. to give you a bit more data I included data from previous years (Study1, St
 ```{r}
 # Load the libraries
 library(pacman)
-p_load(tidyverse, groupdata2)
+p_load(tidyverse, groupdata2, ggplot2)
 
 # Load the file
 Sync <- read.csv('data/Study4_G1_T1_Synchronous.csv')
 Turn <- read.csv('data/Study4_G1_T2_TurnTaking.csv')
 Conv <- read.csv('data/Study4_G1_T3_Conversation.csv')
 
-# Downsampling - problemer med at få den til at køre
-#### Error in check_arguments_(data, n, method, force_equal, allow_zero, descending,  :   method %in% c("greedy", "n_dist", "n_last", "n_fill", "n_rand",  .... is not TRUE
+## Finding participant 1 and 2 
 
-
-# For the Syncronisation task
-dSync <- Sync %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
-    time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
-
-# For the turn taking task
-dTurn <- Turn %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
-    time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
-
-# For the conversation task
-dConv <- Conv %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
-    time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
 
 # Plot
+ggplot(data = Sync,
+       aes(x = min, y = Resp2)) +
+  geom_line()
 
 
 ## Remove outliers
@@ -138,6 +107,43 @@ threshold=2.5 # Default value at 2.5 sds from the mean
 #    Resp1 = mean(Resp1S,na.rm=T),
 #    Resp2 = mean(Resp2S,na.rm=T),
 #    rowname = rowname[1]) #the index we use to put them back together 
+
+# Downsampling - problemer med at få den til at køre
+#### Error in check_arguments_(data, n, method, force_equal, allow_zero, descending,  :   method %in% c("greedy", "n_dist", "n_last", "n_fill", "n_rand",  .... is not TRUE
+
+
+# For the Syncronisation task
+dSync <- Sync %>% 
+  group(n=100, method = ' greedy') %>% 
+  dplyr::symmarise(
+    time = mean(time,na.rm=T),
+    HR1 = mena(HR1, na.rm=T), 
+    HR2 = mena(HR2, na.rm=T), 
+    Resp1 = mean(Resp1,na.rm=T),
+    Resp2 = mean(Resp2, na.rm=T)
+  )
+
+# For the turn taking task
+dTurn <- Turn %>% 
+  group(n=100, method = ' greedy') %>% 
+  dplyr::symmarise(
+    time = mean(time,na.rm=T),
+    HR1 = mena(HR1, na.rm=T), 
+    HR2 = mena(HR2, na.rm=T), 
+    Resp1 = mean(Resp1,na.rm=T),
+    Resp2 = mean(Resp2, na.rm=T)
+  )
+
+# For the conversation task
+dConv <- Conv %>% 
+  group(n=100, method = ' greedy') %>% 
+  dplyr::symmarise(
+    time = mean(time,na.rm=T),
+    HR1 = mena(HR1, na.rm=T), 
+    HR2 = mena(HR2, na.rm=T), 
+    Resp1 = mean(Resp1,na.rm=T),
+    Resp2 = mean(Resp2, na.rm=T)
+  )
 
 ## Plot the downsampled data
 p4 <- ggplot(data = d1) +
