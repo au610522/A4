@@ -49,7 +49,7 @@ N.B. to give you a bit more data I included data from previous years (Study1, St
 - correctly identify all columns
 - plot the data
 - deal with the artifacts
-- downsample the dat
+- downsample the data
 - Add a column for study, group, trial and condition
 
 ```{r}
@@ -108,7 +108,7 @@ RespConv <- gather(Conv, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -
 HRConv <- gather(Conv, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
 
 # Plot
-PlotConv <- ggplot(data = RespConv,
+PlotRespConv <- ggplot(data = RespConv,
        aes(x = min, y = Resp, group = Participant, color = Participant)) +
   geom_line() + 
   labs(title = 'Resp over time for conversation') +
@@ -136,9 +136,17 @@ removeOuts <- function(ts,threshold){
 }
 threshold=2.5 # Default value at 2.5 sds from the mean
 
+# Outliers for syncronize data 
 HRSync$HRout <- removeOuts(HRSync$HR, threshold)
 RespSync$Respout <- removeOuts(RespSync$Resp, threshold)
 
+HRSyncOut <- subset(HRSync, min, Participant, HR, HRout)
+
+RespTurn <- gather(Turn, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
+HRTurn <- gather(Turn, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+
+
+# Plot raw data againt those with the artiacts removed
 PlotHRout <- ggplot(data = HRSync,
        aes(x = min, y = HR, group = Participant, color = Participant)) +
   geom_line() + 
@@ -146,9 +154,6 @@ PlotHRout <- ggplot(data = HRSync,
   xlab("Time") + ylab("Heart Rate")
 
 print(PlotHRout)
-
-# Plot raw data againt those with the artiacts removed
-
 
 ## Scale
 ### Tip: if scale() gives some issues, try the one below
