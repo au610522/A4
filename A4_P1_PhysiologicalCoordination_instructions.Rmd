@@ -55,78 +55,42 @@ N.B. to give you a bit more data I included data from previous years (Study1, St
 ```{r}
 # Load the libraries
 library(pacman)
-p_load(tidyverse, groupdata2, ggplot2, tidyr)
+p_load(tidyverse, groupdata2, ggplot2, tidyr, gridExtra)
 
 # Load the file
+# We have chosen group 1 in study 4, their first trial - synchonous 
 Sync <- read.csv('data/Study4_G1_T1_Synchronous.csv')
-Turn <- read.csv('data/Study4_G1_T2_TurnTaking.csv')
-Conv <- read.csv('data/Study4_G1_T3_Conversation.csv')
 
-## Finding participant 1 and 2 for syncronization
-
-RespSync <- gather(Sync, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
-HRSync <- gather(Sync, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+# Comment on the collumns?
 
 # Plot
-PlotRespSync <- ggplot(data = RespSync,
-       aes(x = min, y = Resp, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Resp over time for syncronization') +
-  xlab("Time") + ylab("Resp")
+## First we plot the respiration data for the two participants
 
-PlotHRSync <- ggplot(data = HRSync,
-       aes(x = min, y = HR, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Heart rate over time for syncronization') +
-  xlab("Time") + ylab("Heart Rate")
+PlotResp <- ggplot(data = Sync) +
+  geom_path(aes(TimeMs, Resp1, color = "Participant 1")) +
+  geom_path(aes(TimeMs, Resp2, color = "Participant 2")) +
+  labs(x = "time in Ms", y = "Respiration") +
+  labs(title = 'Raw Respiration Data') +
+  theme(legend.position="bottom")
+PlotResp
 
-print(PlotHRSync)
-print(PlotRespSync)
+## Than plotting the Heart Rate data for the different participants
 
-## Finding participant 1 and 2 for turn taking
-RespTurn <- gather(Turn, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
-HRTurn <- gather(Turn, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+#HR signal
+PlotHR<-ggplot(data = Sync) +
+  geom_path(aes(TimeMs, HR1, color = "Participant 1")) +
+  geom_path(aes(TimeMs, HR2, color = "Participant 2")) +
+  labs(x = "time", y = "Resp") +
+  labs(title = 'Raw Heart Rate Data') + 
+  theme(legend.position="bottom")
+PlotHR
 
-# Plot
-PlotRespTurn <- ggplot(data = RespTurn,
-       aes(x = min, y = Resp, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Resp over time for turntaking') +
-  xlab("Time") + ylab("Resp")
-
-PlotHRTurn <- ggplot(data = HRTurn,
-       aes(x = min, y = HR, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Heart rate over time for turntaking') +
-  xlab("Time") + ylab("Heart Rate")
-
-print(PlotHRTurn)
-print(PlotRespTurn)
-
-## Finding participant 1 and 2 for Conversation
-RespConv <- gather(Conv, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
-HRConv <- gather(Conv, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
-
-# Plot
-PlotRespConv <- ggplot(data = RespConv,
-       aes(x = min, y = Resp, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Resp over time for conversation') +
-  xlab("Time") + ylab("Resp")
-
-PlotHRConv <- ggplot(data = HRConv,
-       aes(x = min, y = HR, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Heart rate over time for conversation') +
-  xlab("Time") + ylab("Heart Rate")
-
-print(PlotHRConv)
-print(PlotRespConv)
+#Plotting them along side each other 
+grid.arrange(PlotResp,PlotHR)
 
 
-## Remove outliers
-
-### Tip, check the function below
+# Remove outliers
+### Using the function below to remove outliers
 removeOuts <- function(ts,threshold){
   ts[ts > (mean(ts,na.rm=T) +
              (threshold*sd(ts,na.rm=T))) | 
@@ -137,93 +101,88 @@ removeOuts <- function(ts,threshold){
 threshold=2.5 # Default value at 2.5 sds from the mean
 
 # Outliers for syncronize data 
-HRSync$HRout <- removeOuts(HRSync$HR, threshold)
-RespSync$Respout <- removeOuts(RespSync$Resp, threshold)
+## Heart rate 
+Sync$HR1Out <- removeOuts(Sync$HR1, threshold)
+Sync$HR2Out <- removeOuts(Sync$HR2, threshold)
 
-HRSyncOut <- subset(HRSync, min, Participant, HR, HRout)
-
-RespTurn <- gather(Turn, "Participant", 'Resp', -min, -TimeMs, - ECG1, - ECG2, -Signal1, -Signal2, -HR1, -HR2)
-HRTurn <- gather(Turn, 'Participant', 'HR', -min, -TimeMs, -Resp1,-Resp2,  - ECG1, - ECG2, -Signal1, -Signal2)
+## Respiration Data
+Sync$Resp1Out <- removeOuts(Sync$Resp1, threshold)
+Sync$Resp2Out <- removeOuts(Sync$Resp2, threshold)
 
 
 # Plot raw data againt those with the artiacts removed
-PlotHRout <- ggplot(data = HRSync,
-       aes(x = min, y = HR, group = Participant, color = Participant)) +
-  geom_line() + 
-  labs(title = 'Heart rate over time') +
-  xlab("Time") + ylab("Heart Rate")
+#respiration
+PlotRespOut <- ggplot(data = Sync) +
+  geom_path(aes(TimeMs, Resp1Out, color = "Participant 1")) +
+  geom_path(aes(TimeMs, Resp2Out, color = "Participant 2")) +
+  labs(x = "time in Ms", y = "Respiration") +
+  labs(title = 'Respiration Data Without Outliers') +
+  theme(legend.position="bottom")
+PlotRespOut
 
-print(PlotHRout)
+#HR signal
+PlotHROut<-ggplot(data = Sync) +
+  geom_path(aes(TimeMs, HR1Out, color = "Participant 1")) +
+  geom_path(aes(TimeMs, HR2Out, color = "Participant 2")) +
+  labs(x = "time in Ms", y = "Heart Rate") +
+  labs(title = 'Heart Rate Data Without Outliers') +
+  theme(legend.position="bottom")
+PlotHROut
 
-## Scale
-### Tip: if scale() gives some issues, try the one below
-#z_scale <- function(column){
-#  column_c <- (column - mean(column)) / sd(column)
-#}
+grid.arrange(PlotResp,PlotRespOut)
 
-# Plot again to check how scaled data look like
+grid.arrange(PlotHR,PlotHROut)
 
+#Scaling
+Sync$Resp1S <- scale(Sync$Resp1Out)
+Sync$Resp2S <- scale(Sync$Resp2Out)
+Sync$HR1S <- scale(Sync$HR1Out)
+Sync$HR2S <- scale(Sync$HR2Out)
 
-## Downsample
-### This is tricky, so you can have a look at my code  (relying on Ludvig's groupdata2) if you get stuck
-#d1 = d %>%
-#  group(n = 100, method = 'greedy') %>%
-#  dplyr::summarise(
-#    time = mean(time,na.rm=T),
-#    HR1 = mean(HR1S,na.rm=T),
-#    HR2 = mean(HR2S,na.rm=T),
-#    Resp1 = mean(Resp1S,na.rm=T),
-#    Resp2 = mean(Resp2S,na.rm=T),
-#    rowname = rowname[1]) #the index we use to put them back together 
+Sync$time <- Sync$TimeMs
 
-# Downsampling - problemer med at få den til at køre
-#### Error in check_arguments_(data, n, method, force_equal, allow_zero, descending,  :   method %in% c("greedy", "n_dist", "n_last", "n_fill", "n_rand",  .... is not TRUE
+#Plot again to check how scaled data look like?
 
+# Downsample
 
-# For the Syncronisation task
-dSync <- Sync %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
+Sync$rowname<-rep(1:length(Sync$Resp1),1)
+
+d1 = Sync %>%
+  group(n = 100, method = 'greedy') %>%
+  dplyr::summarise(
     time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
+    HR1 = mean(HR1S,na.rm=T),
+    HR2 = mean(HR2S,na.rm=T),
+    Resp1 = mean(Resp1S,na.rm=T),
+    Resp2 = mean(Resp2S,na.rm=T),
+    rowname = rowname[1]) #the index we use to put them back together 
 
-# For the turn taking task
-dTurn <- Turn %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
-    time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
-
-# For the conversation task
-dConv <- Conv %>% 
-  group(n=100, method = ' greedy') %>% 
-  dplyr::symmarise(
-    time = mean(time,na.rm=T),
-    HR1 = mena(HR1, na.rm=T), 
-    HR2 = mena(HR2, na.rm=T), 
-    Resp1 = mean(Resp1,na.rm=T),
-    Resp2 = mean(Resp2, na.rm=T)
-  )
+d1$filename <- 'Study4_G1_T1_Synchronous'
 
 ## Plot the downsampled data
-p4 <- ggplot(data = d1) +
-  geom_path(aes(time, Resp1, color = "P1")) +
-  geom_path(aes(time, Resp2, color = "P2")) +
-  labs(x = "time", y = "Resp") +
+PlotRespDown <- ggplot(data = d1) +
+  geom_path(aes(time, Resp1, color = "Participant 1")) +
+  geom_path(aes(time, Resp2, color = "Participant 2")) +
+  labs(x = "time in Ms", y = "Respiration") +
+  labs(title = 'Downsampled Respiration Data') +
   theme(legend.position="bottom")
-p4
+PlotRespDown
+
+PlotHRDown <- ggplot(data = d1) +
+  geom_path(aes(time, HR1, color = "Participant 1")) +
+  geom_path(aes(time, HR2, color = "Participant 2")) +
+  labs(x = "time in Ms", y = "Heart Rate") +
+  labs(title = 'Downsampled Heart Rate Data') +
+  theme(legend.position="bottom")
+PlotHRDown
+
+grid.arrange(PlotRespDown, PlotHRDown)
 
 ## Now add the group, trial, condition to the cleaned up, scaled, downsampled data
-## Tip the info is in the file name
-
+d1$study <- str_split(d1$filename[1],'_')[[1]][1]
+d1$group <- str_split(d1$filename[1],'_')[[1]][2]
+d1$trial <- str_split(d1$filename[1],'_')[[1]][3]
+d1$condition <- str_split(d1$filename[1],'_')[[1]][4]
 
 ```
 
@@ -242,14 +201,50 @@ A couple of tips:
 # Define a function running the loading, artifact removal, scaling, downsampling, info adding.
 
 data_preprocess <- function(filename, threshold = 2.5){
+  x <- read.csv(filename)
   
-  # To be filled in
+  ## Removing Outliers 
+  x$HR1Out <- removeOuts(x$HR1, threshold)
+  x$HR2Out <- removeOuts(x$HR2, threshold)
+  x$Resp1Out <- removeOuts(x$Resp1, threshold)
+  x$Resp2Out <- removeOuts(x$Resp2, threshold)
+
+  ## Scaling the data 
+  x$Resp1S <- scale(x$Resp1Out)
+  x$Resp2S <- scale(x$Resp2Out)
+  x$HR1S <- scale(x$HR1Out)
+  x$HR2S <- scale(x$HR2Out)
   
-  return(d1)
+  ## Adding a collumn with rownames 
+  x$rowname<-rep(1:length(x$HR1),1)
+  
+  ## Downsampling  
+  d = Sync %>%
+  group(n = 100, method = 'greedy') %>%
+  dplyr::summarise(
+    time = mean(time,na.rm=T),
+    HR1 = mean(HR1S,na.rm=T),
+    HR2 = mean(HR2S,na.rm=T),
+    Resp1 = mean(Resp1S,na.rm=T),
+    Resp2 = mean(Resp2S,na.rm=T),
+    rowname = rowname[1]) #the index we use to put them back together 
+  
+  ## Adding a collumn with filename
+  d$filename <- filename
+  
+  ## Adding Study, Groupnumber, Trial and Condition
+  d$study <- str_split(d$filename[1],'_')[[1]][1]
+  d$group <- str_split(d$filename[1],'_')[[1]][2]
+  d$trial <- str_split(d$filename[1],'_')[[1]][3]
+  d$condition <- str_split(d$filename[1],'_')[[1]][4]
+  return(d)
 
 }
 
+data_preprocess('data/Study4_G5_T1_Synchronous.csv')
+
 #  Identify all files to be read
+
 
 # Run the function on the whole dataset using map_df
 
