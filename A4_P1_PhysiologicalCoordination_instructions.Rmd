@@ -98,7 +98,7 @@ removeOuts <- function(ts,threshold){
              (threshold*sd(ts,na.rm=T)))] = mean(ts,na.rm=T)
   return(ts)
 }
-threshold=2.5 # Default value at 2.5 sds from the mean
+threshold=3 # Default value at 2.5 sds from the mean
 
 # Outliers for syncronize data 
 ## Heart rate 
@@ -183,9 +183,7 @@ d1$study <- str_split(d1$filename[1],'_')[[1]][1]
 d1$group <- str_split(d1$filename[1],'_')[[1]][2]
 d1$trial <- str_split(d1$filename[1],'_')[[1]][3]
 d1$condition <- str_split(d1$filename[1],'_')[[1]][4]
-
 ```
-
 
 ## Now we are ready to go to load and pre-process all files
 
@@ -201,7 +199,7 @@ A couple of tips:
 # Define a function running the loading, artifact removal, scaling, downsampling, info adding.
 
 data_preprocess <- function(filename, threshold = 2.5){
-  x <- read.csv(filename)
+  x <- read.csv(paste('data/', filename, sep = ""))
   
   ## Removing Outliers 
   x$HR1Out <- removeOuts(x$HR1, threshold)
@@ -215,12 +213,16 @@ data_preprocess <- function(filename, threshold = 2.5){
   x$HR1S <- scale(x$HR1Out)
   x$HR2S <- scale(x$HR2Out)
   
+  # manipulating time to make comparisons possible
+  start_time <- x$TimeMs[1]
+  x$time <- x$TimeMs - start_time
+  
   ## Adding a collumn with rownames 
   x$rowname<-rep(1:length(x$HR1),1)
   
-  ## Downsampling  
-  d = Sync %>%
-  group(n = 100, method = 'greedy') %>%
+  ## Downsampling
+  d = x %>%
+  group(n = 1000, method = 'greedy') %>%
   dplyr::summarise(
     time = mean(time,na.rm=T),
     HR1 = mean(HR1S,na.rm=T),
@@ -241,23 +243,42 @@ data_preprocess <- function(filename, threshold = 2.5){
 
 }
 
-data_preprocess('data/Study4_G5_T1_Synchronous.csv')
+data_preprocess('Study4_G5_T1_Synchronous.csv')
 
 #  Identify all files to be read
-
+study4_files <- list.files(path = 'data/', pattern="(Study4)(.*)(.csv$)") # match .txt regular expression and make a list of all files
 
 # Run the function on the whole dataset using map_df
+study4 <- map_df(study4_files, data_preprocess)
 
-         
+# remove .csv from condition string
+study4$condition <- str_remove(study4$condition, pattern = ".csv")
+
 # Now we need to make sure all the data are meaningful or something has to be removed
 # E.g. "Study1_G1_T1_Synchronous" has one bad respiration signal. We could replace it with NAs
 
 # plots plots plots
+study4 %>% ggplot()+
+  geom_line(aes(x = time, y = HR1, color = "Participant 1"))+
+  geom_line(aes(x = time, y = HR2, color = "Participant 2"))+
+  facet_wrap(~group + trial)+
+  theme_minimal()+
+  labs(title = "Heart rate signals for all groups and trials", x = "Time", y = "Heart rate")
 
-# Remove bad data
+
+## Bad Data For Heart Rate as estimated from the plots
+# G8 T4, G3 T5
+
+# Remove bad data - Pair 6 condition sync and turn taking
+
+study4$HR1[study4$group == "G3" & study4$trial == "T5"] <- NA
+study4$HR2[study4$group == "G3" & study4$trial == "T5"] <- NA
+
+study4$HR1[study4$group == "G8" & study4$trial == "T4"] <- NA
+study4$HR2[study4$group == "G8" & study4$trial == "T4"] <- NA
 
 # Save the data
-
+write.csv(study4, "study4.csv")
 ```
 
 ## Now we need to run some analysis
@@ -268,9 +289,9 @@ Let's start with a multilevel model that accounts for
 
 The data needs to be further prepared, so we can analyze both participants in the same model.
 We need to turn the data into a long format:
-- a column indicating own hr and one own respiration
-- a column indicating other hr and one other respiration
-- a column indicating change in hr from previous round and one in respiration
+x- a column indicating own hr and one own respiration
+x- a column indicating other hr and one other respiration
+x- a column indicating change in hr from previous round and one in respiration
 
 We can then run an analysis where change is a function of one's previous state (stability, see slides), and the other's previous state (coupling). Make sure to:
 - set up the most interesting contrasts: how do these parameters vary by condition? which condition should be baseline?
@@ -283,21 +304,153 @@ Bonus question: what if we include an additional layer? Is my heart rate just ad
 
 
 ```{r}
+study4 <- read.csv('study4.csv')
 
-# Genearate a column for each: previous HR1, HR2, Resp1, Resp2
+##### # 
+study4 <- select(study4, -.groups, -X)
+
+study4$HR1_2 <- study4$HR1 
+study4$HR2_2 <- study4$HR2
+
+study4$Resp1_2 <- study4$Resp1 
+study4$Resp2_2 <- study4$Resp2
+
+#HR <- gather(study4, 'Participant', 'Previous_HR', -time, -Resp1, -Resp2, -rowname, -filename, -study, -group, -trial, -HR1_2, - HR2_2, -condition)
+
+# Genearate a column for each: previous HR1, HR2, Resp1, Resp2 - using lead , creating the following ( not the previous )
+study4$HR1_pre <- lag(study4$HR1, 1)
+study4$HR2_pre <- lag(study4$HR2, 1)
+study4$Resp1_pre <- lag(study4$Resp1, 1)
+study4$Resp2_pre <- lag(study4$Resp2, 1)
+
 # Genearate a column for each: change in HR1, HR2, Resp1, Resp2
 
+study4$HR1_Change <- study4$HR1 - study4$HR1_pre
+study4$HR2_Change <- study4$HR2 - study4$HR2_pre 
+study4$Resp1_Change <- study4$Resp1 - study4$Resp1_pre
+study4$Resp2_Change <- study4$Resp2 - study4$Resp2_pre 
 
 # Make the data long, so we can analyze both participants at the same time 
+
+d_hr_change <- 
+  gather(study4, 
+         participant, HR_change_self,
+         HR1_Change, HR2_Change) %>% 
+  
+  select(time, HR_change_self, participant, study, group, condition, trial) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant))
+
+d_resp_change <- 
+  gather(study4, 
+         participant, Resp_change_self,
+         Resp1_Change, Resp2_Change) %>% 
+  
+  select(time, Resp_change_self, participant, study, group, condition, trial) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant))
+
+#### For the comparison between other and self/// HR
+com_hr <- 
+  gather(study4, 
+         participant, HR,
+         HR1, HR2) %>% 
+  
+  select(time, HR, participant, study, group, condition, trial, HR1_2, HR2_2) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant))
+
+HRP1 <- rbind(subset(com_hr, participant == '11'),subset(com_hr, participant == '21'), subset(com_hr, participant == '31'),subset(com_hr, participant == '41'),subset(com_hr, participant == '51'),subset(com_hr, participant == '61'),subset(com_hr, participant == '71'), subset(com_hr, participant == '81')) # '11', '21', '31', '41', '51', '61', '71', '81')  # alle som ænder på 1
+HRP1$HR_other <- HRP1$HR2_2
+
+HRP2 <- rbind(subset(com_hr, participant == '12'),subset(com_hr, participant == '22'), subset(com_hr, participant == '32'),subset(com_hr, participant == '42'),subset(com_hr, participant == '52'),subset(com_hr, participant == '62'),subset(com_hr, participant == '72'), subset(com_hr, participant == '82'))
+HRP2$HR_other <- HRP1$HR1_2
+
+HRP1 <- select(HRP1, time, HR, participant, study, group, condition, trial, HR_other)
+HRP2 <- select(HRP2, time, HR, participant, study, group, condition, trial, HR_other)
+
+hr_other <- rbind(HRP1, HRP2)
+
+rm(HRP1, HRP2, com_hr)
+
+#### For the comparison between other and self/// Resp
+com_resp <- 
+  gather(study4, 
+         participant, Resp,
+         Resp1, Resp2) %>% 
+  
+  select(time, Resp, participant, study, group, condition, trial, Resp1_2, Resp2_2) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant))
+
+RespP1 <- rbind(subset(com_resp, participant == '11'),subset(com_resp, participant == '21'), subset(com_resp, participant == '31'),subset(com_resp, participant == '41'),subset(com_resp, participant == '51'),subset(com_resp, participant == '61'),subset(com_resp, participant == '71'), subset(com_resp, participant == '81')) # '11', '21', '31', '41', '51', '61', '71', '81')  # alle som ænder på 1
+RespP1$Resp_other <- RespP1$Resp2_2
+
+RespP2 <- rbind(subset(com_resp, participant == '12'),subset(com_resp, participant == '22'), subset(com_resp, participant == '32'),subset(com_resp, participant == '42'),subset(com_resp, participant == '52'),subset(com_resp, participant == '62'),subset(com_resp, participant == '72'), subset(com_resp, participant == '82'))
+RespP2$Resp_other <- RespP1$Resp1_2
+
+RespP1 <- select(RespP1, time, Resp, participant, study, group, condition, trial, Resp_other)
+RespP2 <- select(RespP2, time, Resp, participant, study, group, condition, trial, Resp_other)
+
+resp_other <- rbind(RespP1, RespP2)
+
+rm(com_resp, RespP1, RespP2)
+
+# Merging the data 
+data1 <- merge(d_hr_change, d_resp_change, all = T)
+data2 <- merge(hr_other, resp_other, all = T)
+
+data <- merge(data1, data2)
+
+rm(d_hr_change, d_resp_change, hr_other, resp_other,data1, data2)
+
 ## N.B. This is a bit tricky and you might have to do it in several steps
 
 # Set the most interesting contrast e.g. by defining synchronous or conversation as the baseline
 
 # Model change as a function of own and other previous state 
 
+# (HR + HR_other) = coupling
+# a model with no random effects would look like this: 
+# The condition with the lowerst alphabetical start - and using that to create the base line condition, next it will look at syncronious - conversation and looking at the interactions 
 
+#lmer(data = data, HR_change_self ~ 1 + (HR + HR_other) * condition) # expecting a stability and coupling in different conditions  
+
+# we may want intercesps for each of the groups - using 0 + in front of the model
+                  
+#lmer(data = data, HR_change_self ~ 1 + (HR + HR_other) * condition + (1 + (HR + HR_other) * condition | participant) + (1 + (HR + HR_other) * condition | group))
+
+#creating a model with one different intercept
+# trying to look at the conditions in their own place
+
+####### TAKING THIS MODEL
+## Creating the model only for the conditions Synchronous, Conversation and TurnTaking
+
+Sy <- subset(data, condition == 'Synchronous')
+Con <- subset(data, condition == 'Conversation')
+Turn <- subset(data, condition == 'TurnTaking')
+
+model_data <- rbind(Sy, Con, Turn)
+
+rm(Sy,Turn,Con)
+
+model <- lmer(data = model_data, HR_change_self ~ 0 + condition + (HR + HR_other) : condition + (0 + condition | participant) + (0 + condition | group))
+
+summary(model)
+
+###telling the model that the data is not all the same
+###partial pulling - estimate 1 person in the pair but know that there is an other person
+###expect the normal person goes back to baseline - pull the individual towards the mean 
+### if we were doing all the studies we should also include that
+
+# We simplify the model - removing the coupling - making it more simple and easier to run
+##simple_model <- lmer(data = data, HR_change_self ~ 0 + condition +(0 + condition | participant) + (0 + condition | group))
+
+##summary(simple_model)
 # Bonus points: Add to the previous model also change in the other to see whether my adaptation is influenced by the other's adaptation.
 
+####### Understanding the model: 
+#### We will have the intercepts ( not that important ) and we will get the slopes, we expect the heart rate to go back. The once for HR should be negative - then everything looks as expected => The copling is the interesting part, if there is not a high number we see that there might not be a lot of coupling. Does not seem to be significant coupling. To see a coupling we would expect a higher number ~ Riccardo got sync coupling and movement guided - not looking at if they are significantly different
 ```
 
 
@@ -311,6 +464,8 @@ Shuffled controls break the temporal dependencies of time-series by shuffling th
 Tip: sample() is your friend, but make sure to shuffle things within participant/condition and not throughout the whole dataset
  
 ```{r}
+
+####### Do this if we have time ##########
 
 # Create a shuffled dataset
 # Concatenate it to the original dataset (and remember to have a column telling you which is which)
@@ -327,11 +482,184 @@ Tip: sample() is your friend, but make sure to shuffle things within participant
 
 # Identify unique pairs within a given study (to keep things manageable) and create list of possible surrogate pairs (e.g. individual 1 from pair 1 and individual 2 from pair 2)
 
+groups <- as.character(unique(study4$group))
+
+SurrogateList <- expand.grid(a = groups, b = groups)
+
+SurrogateList = subset(SurrogateList, a != b)
+
 # Starting from the wide format, create "surrogate" dataset with the data from surrogate pairs
 
+SurrogatePairs <- data.frame(matrix(ncol= 29, nrow= 0))
+
+for(i in 1:nrow(SurrogateList)){
+  x <- subset(study4, group == SurrogateList$a[i])
+  y <- subset(study4, group == SurrogateList$b[i])
+  group <- c(800 + ((1:4*i)))
+  
+  for (co in c('Synchronous', 'TurnTaking', 'Conversation', 'MovementCoop', 'MovementGuided')){
+    
+    if(co %in% unique(x$condition) & co %in% unique(y$condition)){
+      z1 <- subset(x, condition==co)
+      z2 <- subset(y, condition==co)
+      
+      if(nrow(z1) > nrow(z2)) {
+        z1 <- z1[1:nrow(z2),]
+      }
+      
+      if(nrow(z2) > nrow(z1)) {
+        z2 <- z2[1:nrow(z1),]
+      }
+      
+      w1 <- z1 %>% mutate(
+        HR2 <- z2$HR2,
+        Resp2 <- z2$Resp2,
+        HR2_pre <- z2$HR2_pre,
+        Resp2_pre <- z2$Resp2_pre,
+        HR2_Change <- z2$HR2_Change,
+        Resp2_Change <- z2$Resp2_Change,
+        HR2_2 <- z2$HR2_2,
+        Resp2_2 <- z2$Resp2_2)
+      
+      w1$pair <- i*100
+      #the collumns we might need : 1, 2, 4, 7, 11, 16, 18, 20, 22, 24, 25, 26, 27, 28, 29
+      
+      SurrogatePairs <- rbind(SurrogatePairs, w1)
+      }
+    }
+}
+
+rm(w1, x, y, z1, z2, SurrogateList, co, group, groups, i)
+
+SurrogatePairs <- SurrogatePairs[,c(1,2,4,7,8,9,10,11,12,14,16,18,20,22,24,25,26,27,28,29, 30, 31, 32)]
+colnames(SurrogatePairs) <- c('time',
+                              'HR1',
+                              'Resp1',
+                              'filename',
+                              'study',
+                              'group',
+                              'trial',
+                              'condition',
+                              'HR1_2',
+                              'Resp1_2',
+                              'HR1_pre',
+                              'Resp1_pre',
+                              'HR1_Change',
+                              'Resp1_Change',
+                              'HR2',
+                              'Resp2',
+                              'HR2_pre',
+                              'Resp2_pre',
+                              'HR2_Change',
+                              'Resp2_Change',
+                              'HR2_2',
+                              'Resp2_2',
+                              'pair')
+
+
+
 # Make it into long format
+d_hr_change <- 
+  gather(SurrogatePairs, 
+         participant, HR_change_self,
+         HR1_Change, HR2_Change) %>% 
+  
+  select(time, HR_change_self, participant, study, group, condition, trial, pair) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant) + parse_number(as.character(pair)))
+
+d_resp_change <- 
+  gather(SurrogatePairs, 
+         participant, Resp_change_self,
+         Resp1_Change, Resp2_Change) %>% 
+  
+  select(time, Resp_change_self, participant, study, group, condition, trial, pair) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant)+ parse_number(as.character(pair)))
+
+com_hr <- 
+  gather(SurrogatePairs, 
+         participant, HR,
+         HR1, HR2) %>% 
+  
+  select(time, HR, participant, study, group, condition, trial, HR1_2, HR2_2, pair) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 10 + parse_number(participant) + parse_number(as.character(pair)))
+
+
+HRP1 <- com_hr[grep('.*(1$)', com_hr$participant),]
+HRP2 <- com_hr[grep('.*(2$)', com_hr$participant),]
+
+HRP1$HR_other <- HRP1$HR2_2
+HRP2$HR_other <- HRP1$HR1_2
+
+HRP1 <- select(HRP1, time, HR, participant, study, group, condition, trial, HR_other)
+HRP2 <- select(HRP2, time, HR, participant, study, group, condition, trial, HR_other)
+
+hr_other <- rbind(HRP1, HRP2)
+
+rm(HRP1, HRP2, com_hr)
+
+####
+com_resp <- 
+  gather(SurrogatePairs, 
+         participant, Resp,
+         Resp1, Resp2) %>% 
+  
+  select(time, Resp, participant, study, group, condition, trial, Resp1_2, Resp2_2) %>%
+  
+  mutate(participant = parse_number(as.character(group))* 100 + parse_number(participant))
+
+# subsetting participant 1 from participant 2 in each trial
+RespP1 <- com_resp[grep('.*(1$)', com_resp$participant),]
+RespP2 <- com_resp[grep('.*(2$)', com_resp$participant),]
+
+RespP1$Resp_other <- RespP1$Resp2_2
+RespP2$Resp_other <- RespP1$Resp1_2
+
+RespP1 <- select(RespP1, time, Resp, participant, study, group, condition, trial, Resp_other)
+RespP2 <- select(RespP2, time, Resp, participant, study, group, condition, trial, Resp_other)
+
+resp_other <- rbind(RespP1, RespP2)
+
+rm(com_resp, RespP1, RespP2)
+
+# Merging the data 
+data1 <- cbind(d_hr_change, d_resp_change)
+data1 <- data1[,-c(8,9, 11:16)]
+
+data2 <- cbind(hr_other, resp_other)
+data2 <- data2[,-c(9, 11:15)]
+
+sur_data <- cbind(data1, data2)
+sur_data <- sur_data[,-c(9,11:15)]
+
+rm(d_hr_change, d_resp_change, hr_other, resp_other,data1, data2)
 
 # Create models as in chunks above, but adding an interaction with the Real vs. Surrogate variable (exclude shuffled ones for simplicity)
+
+# Adding a collumn with the information if it is surrogate or regular data
+sur_data$type <- 'Surrogate'
+data$type <- 'Real'
+
+#collecting it in one dataset
+com_data <- rbind(data, sur_data)
+
+# adding type - the variable if it is a surroget pair or a real pair - THE BASE MODEL 
+
+Sy <- subset(com_data, condition == 'Synchronous')
+Con <- subset(com_data, condition == 'Conversation')
+Turn <- subset(com_data, condition == 'TurnTaking')
+
+sur_model_data <- rbind(Sy, Con, Turn) 
+
+rm(Sy,Turn,Con)
+
+#lmer(0 + (condition + (HR + HR_other):condition) : type)
+
+#including the random effects 
+sur_model<- lmer(data= sur_model_data, HR_change_self ~ 0 + (condition + (HR + HR_other):condition) : type + (0 + condition|participant) + (0 + condition|group))
+summary(sur_model)
 
 ```
  
